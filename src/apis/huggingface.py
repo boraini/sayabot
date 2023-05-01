@@ -2,39 +2,33 @@ import requests
 import json
 
 HUGGINGFACE_TOKEN = None
-headers = None
-
-apis = {
-    "Joshua": "https://api-inference.huggingface.co/models/ThatSkyFox/DialoGPT-small-joshua"
+globalData = {
+    "headers": {"Authorization": f"Bearer 00000000000000000000"}
 }
 
 def setupHuggingFace(**kwargs):
     HUGGINGFACE_TOKEN = kwargs["token"]
-    headers = {"Authorization": f"Bearer {HUGGINGFACE_TOKEN}"}
+    globalData["headers"] = {"Authorization": f"Bearer {HUGGINGFACE_TOKEN}"}
 
 class HuggingFaceConversation:
     def __init__(self, personality, nick):
+        self.globalData = globalData
         self.personalityName = personality.name
-        self.nickPrefix = f"[{personality.name}] "
-        self.apiURL = apis[personality.name]
-        self.inputs = {
-            "past_user_inputs": [],
-            "generated_responses": [],
-            "text": ""
-        }
-    
-    async def sendMessage(self, message):
-        if message == "":
-            return None
-        self.inputs["text"] = message
+        self.nickPrefix = ""
+
+    def makeRequest(self, obj):
         try:
-            res = requests.post(self.apiURL, headers=headers, json={
+            res = requests.post(self.apiURL, headers=globalData["headers"], json={
                 "inputs": self.inputs
-            }, timeout=4)
+            }, timeout=30)
         except(requests.exceptions.Timeout):
-            return self.nickPrefix + "HuggingFace was too slow to complete your request."
+            return "HuggingFace was too slow to complete your request."
+        
         response = json.loads(res.content.decode('utf-8'))
-        print(response)
+
+        return response
+
+    def detectResponseError(self, response):
         if not "generated_text" in response:
             if "error" in response:
                 if "currently loading" in response["error"]:
@@ -42,14 +36,8 @@ class HuggingFaceConversation:
             
                 return f"I don't know what it means but {self.personalityName} said they have this problem: {response['error']}"
             return f"Uuh, something is wrong with {self.personalityName}, I can feel it."
-        print(self.inputs)
-        self.inputs["past_user_inputs"] = response["conversation"]["past_user_inputs"]
-        self.inputs["generated_responses"] = response["conversation"]["generated_responses"]
-        if len(self.inputs["past_user_inputs"]) >= 4:
-            self.inputs["past_user_inputs"].pop(0)
-            self.inputs["generated_responses"].pop(0)
-        print(self.inputs)
-        return self.nickPrefix + response["generated_text"]
+        else:
+            return None
 
     async def end(self):
         pass
